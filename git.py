@@ -26,9 +26,8 @@ def init():
             pass
 
 def hash_object():
-    if sys.argv[1] == "hash-object":
-        if len(sys.argv) != 3:
-            sys.exit("Enter a file you want to hash")
+    if len(sys.argv) != 3:
+        sys.exit("Enter a file you want to hash")
 
         if "/" in sys.argv[2]:
             full_path = sys.argv[2]
@@ -75,6 +74,9 @@ def main():
     check_sys()
     if sys.argv[1] == "init":
         init()
+    
+    if sys.argv[1] == "hash-object":
+        hash_object()
     
 
 
