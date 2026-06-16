@@ -109,6 +109,54 @@ def hash_object():
 
         else:
             print("File Doesn't Exist")
+        
+def cat_file():
+    if len(sys.argv) < 3:
+        sys.exit("Enter a file you want to hash")
+    if sys.argv[2] == "-p":
+        if len(sys.argv) != 4:
+            sys.exit("No Hash Object Mentioned")
+        
+        folder1 = str(sys.argv[3])[:2]
+        file1 = str(sys.argv[3])[2:]
+        
+        current_dir = Path.cwd()
+        current_dir_len = str(current_dir).split("\\")
+
+        for i in range(len(current_dir_len)):
+            pathh = current_dir / ".git" / "objects" / folder1 / file1
+            if pathh.is_file():
+                break
+            
+            current_dir = current_dir.parent
+        else:
+            sys.exit(f"No Hash Object named {sys.argv[3]} Found in Current Directory")
+        
+        with open(pathh, "rb") as file:
+            file_content = file.read()
+            x = zlib.decompress(file_content)
+            x = x.decode()
+
+        
+
+        for i in range(len(x)):
+            if x[i] == "\0":
+                split_number = i + 1
+                break
+
+        content = x[split_number:]
+        print(content)
+
+        
+
+        
+        
+        
+
+
+
+
+
 
         
         
@@ -131,6 +179,9 @@ def main():
     
     if sys.argv[1] == "hash-object":
         hash_object()
+    
+    if sys.argv[1] == "cat-file":
+        cat_file()
     
 
 
