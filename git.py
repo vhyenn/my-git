@@ -1,7 +1,7 @@
 import sys
 import os
 from pathlib import Path
-from hashlib import blake2b
+import hashlib
 import zlib
     
 def check_sys():
@@ -49,16 +49,15 @@ def hash_object():
             except IOError:
                 sys.exit("File not found")
             
-            h = blake2b(digest_size=20)
-            h.update(blob)
+            h = hashlib.sha1(blob)
             blob_hash = h.hexdigest()
             print(blob_hash)
         
         else:
             print("File Doesn't Exist")
     
-    elif len(sys.argv) == 4 and sys.argv[3] == "-w":
-        file_name = Path(sys.argv[2])
+    elif len(sys.argv) == 4 and sys.argv[2] == "-w":
+        file_name = Path(sys.argv[3])
 
         if file_name.is_file():
             
@@ -78,8 +77,8 @@ def hash_object():
             except IOError:
                 sys.exit("File not found")
             
-            h = blake2b(digest_size=20)
-            h.update(blob)
+            
+            h = hashlib.sha1(blob)
             blob_hash = h.hexdigest()
             
 
@@ -113,61 +112,66 @@ def hash_object():
 def cat_file():
     if len(sys.argv) < 3:
         sys.exit("Enter a file you want to hash")
-    if sys.argv[2] == "-p":
-        if len(sys.argv) != 4:
-            sys.exit("No Hash Object Mentioned")
-        
-        folder1 = str(sys.argv[3])[:2]
-        file1 = str(sys.argv[3])[2:]
-        
-        current_dir = Path.cwd()
-        current_dir_len = str(current_dir).split("\\")
+    
+    if len(sys.argv) != 4:
+        sys.exit("No Hash Object Mentioned")
+    
+    if sys.argv[2] not in ["-p", "-t", "-s", "-e"]:
+        sys.exit("No Flag Mentioned")
+    
+    folder1 = str(sys.argv[3])[:2]
+    file1 = str(sys.argv[3])[2:]
+    
+    current_dir = Path.cwd()
+    current_dir_len = str(current_dir).split("\\")
 
-        for i in range(len(current_dir_len)):
-            pathh = current_dir / ".git" / "objects" / folder1 / file1
-            if pathh.is_file():
-                break
-            
-            current_dir = current_dir.parent
-        else:
-            sys.exit(f"No Hash Object named {sys.argv[3]} Found in Current Directory")
+    for i in range(len(current_dir_len)):
+        pathh = current_dir / ".git" / "objects" / folder1 / file1
+        if pathh.is_file():
+            break
         
-        with open(pathh, "rb") as file:
-            file_content = file.read()
-            x = zlib.decompress(file_content)
-            x = x.decode()
-
+        current_dir = current_dir.parent
+    else:
+        sys.exit(f"No Hash Object named {sys.argv[3]} Found in Current Directory")
+    
+    with open(pathh, "rb") as file:
+        file_content = file.read()
+        x = zlib.decompress(file_content)
+        
         
 
         for i in range(len(x)):
-            if x[i] == "\0":
-                split_number = i + 1
+            if x[i] == 0:
+                split_number = i
                 break
-
-        content = x[split_number:]
+        header = x[:split_number]
+        header = header.decode()
+        typee, sizee = header.split(" ")
+        
+    
+    if sys.argv[2] == "-p":
+        try:
+            content = x[split_number + 1:].decode()
+        except UnicodeDecodeError:
+            sys.exit("Couldn't Fetch it as its not text")
         print(content)
-
-        
-
         
         
         
 
+    elif sys.argv[2] == "-t":
+        print(typee)
 
-
-
-
-
-        
-        
-        
-        
-        
-
-        
-
-
-
+    
+    elif sys.argv[2] == "-s":
+        print(sizee)
+    
+    elif sys.argv[2] == "-e": 
+        print("Exists")
+    
+    else:
+        print("Not a Valid Flag")
+    
 def create_folders(path):
     os.mkdir(f"{path}")
 
@@ -177,11 +181,14 @@ def main():
     if sys.argv[1] == "init":
         init()
     
-    if sys.argv[1] == "hash-object":
+    elif sys.argv[1] == "hash-object":
         hash_object()
     
-    if sys.argv[1] == "cat-file":
+    elif sys.argv[1] == "cat-file":
         cat_file()
+    
+    else:
+        sys.exit("Not a valid command")
     
 
 
