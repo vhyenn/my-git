@@ -198,6 +198,7 @@ def add():
         sys.exit("File Doesn't Exist")
 
     blob_hash, blob, raw_bytes = create_hash(file_name)
+    write_in_hash(blob_hash, blob)
     if os.access(file_name, os.X_OK):
         mode = "100755"
     else:
@@ -226,11 +227,43 @@ def add():
     with open(pathh, "w") as file:
         for key, (modee, blobb_hash) in index_dict.items():
             file.write(f"{modee} {blobb_hash} {key}\n")
+
+
+def write_tree():
+    tree_dict = {}
+    current_dir = Path.cwd()
+    current_dir_len = str(current_dir).split("\\")
+
+    for i in range(len(current_dir_len)):
+        pathh = current_dir / ".git" / "index"
+        if pathh.is_file():
+            break
         
+        current_dir = current_dir.parent
+    else:
+        sys.exit(f"Git Not Initialized")
 
-    
-
-
+    with open(pathh) as file:
+        
+        for line in file:
+            values = line.strip().split(" ")
+            if not "\\" in values[2]:
+                tree_dict[values[2]] = (values[0], values[1])
+            
+            else:
+                temp_var = values[2].split("\\")
+                current = tree_dict
+                for i in range(len(temp_var)):
+                    if current.get(temp_var[i]) == None:
+                        if len(temp_var) - 1 != i:
+                            current[temp_var[i]] = {}
+                            current = current[temp_var[i]]
+                        else:
+                            current[temp_var[i]] = (values[0], values[1])
+                            break
+                    else:
+                        current = current[temp_var[i]]
+                        
 
 def main():
     check_sys()
@@ -246,6 +279,8 @@ def main():
     elif sys.argv[1] == "add":
         add()
     
+    elif sys.argv[1] == "write-tree":
+        write_tree()
 
 
     
