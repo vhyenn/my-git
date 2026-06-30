@@ -288,7 +288,7 @@ def add():
 
 
 # Build an in-memory tree from the index
-#
+# 
 # Example:
 #
 # src/main.py
@@ -356,14 +356,80 @@ def write_tree():
                             current = current[temp_var[i]]
 
                         else:
-
+                            
                             current[temp_var[i]] = (values[0], values[1])
+                            
 
                             break
 
                     else:
 
                         current = current[temp_var[i]]
+
+
+    
+# Recursively converts the nested tree dictionary
+# into Git's binary tree entry format.
+#
+# File entry:
+# 100644 hello.txt\0<20-byte SHA>
+#
+# Directory entry:
+# 40000 src\0<20-byte tree SHA>
+def write_tree_recursive(x: dict):
+
+    current_dir = Path.cwd()
+    current_dir_len = str(current_dir).split("\\")
+
+    # Find repository root
+    for i in range(len(current_dir_len)):
+
+        pathh = current_dir / ".git"
+
+        if pathh.is_dir():
+            break
+
+        current_dir = current_dir.parent
+
+    else:
+        sys.exit("Git Not Initialized")
+
+    # Stores the binary tree object contents
+    s = b""
+
+    # Process every file or directory in the current tree
+    for key, value in x.items():
+
+        # File entry
+        if not isinstance(value, dict):
+
+            mode = value[0]
+            file_name = key
+
+            # Convert hexadecimal SHA into raw 20-byte form
+            blob_hash = bytes.fromhex(value[1])
+
+            # Append:
+            # <mode> <filename>\0<raw SHA bytes>
+            s += f"{mode} {file_name}\0".encode() + blob_hash
+
+        # Directory entry
+        else:
+
+            dir_name = key
+
+            # Recursively build the child tree
+            current = value
+            another_file = write_tree_recursive(current)
+
+            # Append:
+            # 40000 <dirname>\0<child tree SHA>
+            s += f"40000 {dir_name}\0".encode() + another_file
+
+    # Return the binary representation of this tree
+    return s
+
+
 
 
 def main():
@@ -387,7 +453,6 @@ def main():
 
     else:
         sys.exit("Not a valid command")
-
 
 if __name__ == "__main__":
     main()
