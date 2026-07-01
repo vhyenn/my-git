@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import hashlib
 import zlib
+from collections import OrderedDict
 
 
 # Ensure the user entered a git command
@@ -304,7 +305,7 @@ def add():
 #         }
 #     }
 # }
-def write_tree():
+def write_tree_dict():
 
     tree_dict = {}
 
@@ -366,6 +367,9 @@ def write_tree():
 
                         current = current[temp_var[i]]
 
+    
+    return tree_dict
+
 
     
 # Recursively converts the nested tree dictionary
@@ -376,6 +380,8 @@ def write_tree():
 #
 # Directory entry:
 # 40000 src\0<20-byte tree SHA>
+
+global_trees_list = []
 def write_tree_recursive(x: dict):
 
     current_dir = Path.cwd()
@@ -420,14 +426,100 @@ def write_tree_recursive(x: dict):
 
             # Recursively build the child tree
             current = value
-            another_file = write_tree_recursive(current)
+            raw_bytes= write_tree_recursive(current)
 
             # Append:
             # 40000 <dirname>\0<child tree SHA>
-            s += f"40000 {dir_name}\0".encode() + another_file
+            s += f"40000 {dir_name}\0".encode() + raw_bytes
+            
+
+            
+
+
+
+            
 
     # Return the binary representation of this tree
-    return s
+    size = len(s)
+    treee = f"tree {size}\0".encode() + s
+    global_trees_list.append(treee)
+    h = hashlib.sha1(treee)
+    return h.digest()
+
+    
+
+def build_tree(global_tree):
+    pathh = check_git_repo()
+    pathh = pathh / "objects"
+    if not pathh.is_dir():
+        sys.exit("Git Corrupted")
+    for i in global_tree:
+        h = hashlib.sha1(i)
+        hexx = h.hexdigest()
+        folder1 = hexx[:2]
+        file1 = hexx[2:]
+        hash_file_path = os.path.join(pathh, folder1, file1)
+
+        compressed_treee = zlib.compress(i)
+
+        if not os.path.isdir(os.path.join(pathh, folder1)):
+            create_folders(os.path.join(pathh, folder1))
+
+        if not os.path.isfile(os.path.join(pathh, folder1, file1)):
+            with open(hash_file_path, "wb") as file:
+                file.write(compressed_treee)
+    
+    
+    
+
+
+        
+
+def check_git_repo():
+    current_dir = Path.cwd()
+    current_dir_len = str(current_dir).split("\\")
+
+    # Find repository root
+    for i in range(len(current_dir_len)):
+
+        pathh = current_dir / ".git"
+
+        if pathh.is_dir():
+            break
+
+        current_dir = current_dir.parent
+
+    else:
+        sys.exit("Git Not Initialized")
+    
+    return pathh
+
+def sort_tree(tree):
+
+    res = OrderedDict(sorted(tree.items(), key=lambda item: item[0]))
+
+    for key, value in res.items():
+        if isinstance(value, dict):
+            x = sort_tree(value)
+        else:
+            continue
+        
+        res[key] = x
+    
+    return res
+        
+
+            
+            
+
+        
+
+
+    
+
+    
+
+    
 
 
 
@@ -449,7 +541,13 @@ def main():
         add()
 
     elif sys.argv[1] == "write-tree":
-        write_tree()
+        global_trees_list.clear()
+        tree_dict = write_tree_dict()
+        sorted_tree_dict = sort_tree(tree_dict)
+        raw_bytes = write_tree_recursive(sorted_tree_dict)
+        build_tree(global_trees_list)
+        print(raw_bytes.hex())
+
 
     else:
         sys.exit("Not a valid command")
