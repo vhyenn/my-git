@@ -372,16 +372,15 @@ def write_tree_dict():
 
 
     
-# Recursively converts the nested tree dictionary
-# into Git's binary tree entry format.
-#
-# File entry:
-# 100644 hello.txt\0<20-byte SHA>
-#
-# Directory entry:
-# 40000 src\0<20-byte tree SHA>
 
+
+# Stores every complete tree object generated during recursion,
+# so build_tree() can write them all to .git/objects afterward.
 global_trees_list = []
+
+# Recursively converts the nested tree dictionary into Git's binary
+# tree object format. Returns the raw 20-byte SHA-1 hash of the
+# tree built at this level, so the parent call can reference it.
 def write_tree_recursive(x: dict):
 
     current_dir = Path.cwd()
@@ -400,7 +399,7 @@ def write_tree_recursive(x: dict):
     else:
         sys.exit("Git Not Initialized")
 
-    # Stores the binary tree object contents
+    # Stores the binary tree entries for the current directory
     s = b""
 
     # Process every file or directory in the current tree
@@ -415,7 +414,6 @@ def write_tree_recursive(x: dict):
             # Convert hexadecimal SHA into raw 20-byte form
             blob_hash = bytes.fromhex(value[1])
 
-            # Append:
             # <mode> <filename>\0<raw SHA bytes>
             s += f"{mode} {file_name}\0".encode() + blob_hash
 
@@ -424,47 +422,54 @@ def write_tree_recursive(x: dict):
 
             dir_name = key
 
-            # Recursively build the child tree
+            # Recurse into the subdirectory first, since a tree
+            # entry needs the child tree's finished hash, not
+            # its contents
             current = value
-            raw_bytes= write_tree_recursive(current)
+            raw_bytes = write_tree_recursive(current)
 
-            # Append:
             # 40000 <dirname>\0<child tree SHA>
             s += f"40000 {dir_name}\0".encode() + raw_bytes
-            
 
-            
-
-
-
-            
-
-    # Return the binary representation of this tree
+    # Wrap the entries in the standard object header: tree <size>\0<entries>
     size = len(s)
     treee = f"tree {size}\0".encode() + s
+
+    # Queue this tree for writing, then hand its hash up to the caller
     global_trees_list.append(treee)
     h = hashlib.sha1(treee)
     return h.digest()
 
     
 
+# Writes every tree object collected in global_trees_list into
+# .git/objects, using the same hash/compress/store scheme as blobs
 def build_tree(global_tree):
+
     pathh = check_git_repo()
     pathh = pathh / "objects"
+
     if not pathh.is_dir():
         sys.exit("Git Corrupted")
+
     for i in global_tree:
+
         h = hashlib.sha1(i)
         hexx = h.hexdigest()
+
+        # .git/objects/aa/bbbbb...
         folder1 = hexx[:2]
         file1 = hexx[2:]
+
         hash_file_path = os.path.join(pathh, folder1, file1)
 
         compressed_treee = zlib.compress(i)
 
+        # Create object directory if necessary
         if not os.path.isdir(os.path.join(pathh, folder1)):
             create_folders(os.path.join(pathh, folder1))
 
+        # Don't overwrite existing objects
         if not os.path.isfile(os.path.join(pathh, folder1, file1)):
             with open(hash_file_path, "wb") as file:
                 file.write(compressed_treee)
@@ -475,11 +480,13 @@ def build_tree(global_tree):
 
         
 
+# Walks upward from the current directory until a .git folder
+# is found, and returns the path to that .git directory
 def check_git_repo():
+
     current_dir = Path.cwd()
     current_dir_len = str(current_dir).split("\\")
 
-    # Find repository root
     for i in range(len(current_dir_len)):
 
         pathh = current_dir / ".git"
@@ -494,10 +501,13 @@ def check_git_repo():
     
     return pathh
 
+# Recursively sorts a tree dictionary alphabetically by key, since
+# Git requires entries to be in sorted order before hashing a tree
 def sort_tree(tree):
 
     res = OrderedDict(sorted(tree.items(), key=lambda item: item[0]))
 
+    # Sort nested directories too, not just the top level
     for key, value in res.items():
         if isinstance(value, dict):
             x = sort_tree(value)
@@ -524,6 +534,7 @@ def sort_tree(tree):
 
 
 
+# Entry point: dispatches to the right git command based on argv[1]
 def main():
 
     check_sys()
@@ -541,11 +552,16 @@ def main():
         add()
 
     elif sys.argv[1] == "write-tree":
+
+        # Reset in case write-tree runs more than once in the same process
         global_trees_list.clear()
+
         tree_dict = write_tree_dict()
         sorted_tree_dict = sort_tree(tree_dict)
         raw_bytes = write_tree_recursive(sorted_tree_dict)
         build_tree(global_trees_list)
+
+        # Print the root tree's hash, like real `git write-tree`
         print(raw_bytes.hex())
 
 
